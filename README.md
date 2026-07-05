@@ -70,7 +70,18 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 - [x] **Fase 2 — Sandbox y memoria**: herramienta `run_python` en contenedores Docker efímeros (sin red, límites de CPU/RAM/pids, rootfs de solo lectura), compresión de contexto para runs largos, RAG con pgvector (índices HNSW), chunking con solape, embedders OpenAI/Ollama/hash, herramienta `search_memory` y endpoints de documentos
 - [x] **Fase 3 — Orquestación multi-agente**: grafo `plan → delegate → collect → synthesize` con checkpointing fase a fase en `runs.checkpoint`, plan JSON del orquestador con DAG de dependencias, sub-agentes en paralelo por olas (hasta 4 simultáneos), presupuesto de equipo, reanudación tras caída del worker (O4) y equipos en el panel (crear equipo + lanzar runs de equipo)
 - [x] **Fase 4 — Human-in-the-loop y seguridad**: guardrails de política por nivel de riesgo (`safe`/`sensitive`/`dangerous`), escalado a aprobación ante argumentos sospechosos, gate de aprobación en el motor (el run pasa a `awaiting_approval` y espera la decisión humana con timeout configurable), detección de prompt injection en contenido externo, y cola de aprobaciones en el panel (aprobar/rechazar en vivo) — objetivo O5 cumplido
-- [ ] Fase 5 — Programación, métricas y pulido (cron, webhooks, dashboard de costos, suite de evals)
+- [x] **Fase 5 — Programación, métricas y pulido**: runs programados por cron (parser propio de 5 campos + scheduler idempotente por minuto que lanza runs hijo), notificaciones webhook al terminar (CU-3), dashboard de métricas (tasa de éxito, costo por agente, herramientas más usadas), suite de 10 evals de referencia con scoring y comparación contra línea base, y CI (tests + evals + build)
+
+**v1.0 completa: los objetivos O1–O5 y los 3 casos de uso están cubiertos end-to-end.**
+
+## Procesos
+
+| Proceso | Comando | Rol |
+|---------|---------|-----|
+| API | `uvicorn app.main:app` | REST + SSE |
+| Worker(s) | `python worker.py` | ejecuta runs de la cola (escalable) |
+| Scheduler | `python scheduler.py` | dispara runs programados (cron) |
+| Evals | `python run_evals.py` | scoring vs. línea base (CI) |
 
 Ver el detalle de cada fase en [docs/DESIGN.md](docs/DESIGN.md#8-roadmap-por-fases).
 

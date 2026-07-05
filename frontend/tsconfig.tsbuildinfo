@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/lib/api.ts","./src/lib/auth.ts","./src/lib/types.ts","./src/pages/Agents.tsx","./src/pages/Login.tsx","./src/pages/RunDetail.tsx","./src/pages/Runs.tsx","./src/pages/Teams.tsx"],"version":"5.6.3"}
+{"root":["./src/App.tsx","./src/main.tsx","./src/lib/api.ts","./src/lib/auth.ts","./src/lib/types.ts","./src/pages/Agents.tsx","./src/pages/Login.tsx","./src/pages/Metrics.tsx","./src/pages/RunDetail.tsx","./src/pages/Runs.tsx","./src/pages/Teams.tsx"],"version":"5.6.3"}

@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom"
 import { useAuth } from "./lib/auth";
 import Agents from "./pages/Agents";
 import Login from "./pages/Login";
+import Metrics from "./pages/Metrics";
 import RunDetail from "./pages/RunDetail";
 import Runs from "./pages/Runs";
 import Teams from "./pages/Teams";
@@ -25,6 +26,7 @@ function Layout({ children }: { children: JSX.Element }) {
         <NavLink to="/agents">Agentes</NavLink>
         <NavLink to="/teams">Equipos</NavLink>
         <NavLink to="/runs">Runs</NavLink>
+        <NavLink to="/metrics">Métricas</NavLink>
         <div className="spacer" />
         <div className="user">{email}</div>
         <button className="ghost" onClick={clear}>
@@ -66,6 +68,16 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <Runs />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/metrics"
+        element={
+          <RequireAuth>
+            <Layout>
+              <Metrics />
             </Layout>
           </RequireAuth>
         }

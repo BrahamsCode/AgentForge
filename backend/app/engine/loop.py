@@ -314,6 +314,26 @@ async def _finish(db, run, publish, *, status: str, error: str | None = None,
         str(run.id),
         {"type": "run_finished", "run_id": str(run.id), "status": status, "error": error},
     )
+    await _maybe_notify(run, status)
+
+
+async def _maybe_notify(run, status: str) -> None:
+    """Webhook de fin de run programado (CU-3)."""
+    notify = (run.checkpoint or {}).get("notify")
+    if not notify or not notify.get("webhook_url"):
+        return
+    from app.scheduler.webhooks import notify as post_webhook
+
+    await post_webhook(
+        notify["webhook_url"],
+        {
+            "run_id": str(run.id),
+            "parent_run_id": str(run.parent_run_id) if run.parent_run_id else None,
+            "status": status,
+            "final_answer": (run.checkpoint or {}).get("final_answer"),
+            "total_cost_usd": run.total_cost_usd,
+        },
+    )
 
 
 def _summarize_args(args: dict) -> str:
