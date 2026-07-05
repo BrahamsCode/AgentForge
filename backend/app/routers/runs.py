@@ -19,7 +19,8 @@ _TERMINAL = ("completed", "failed", "cancelled")
 
 
 class RunCreate(BaseModel):
-    agent_id: uuid.UUID
+    agent_id: uuid.UUID | None = None
+    team_id: uuid.UUID | None = None
     goal: str = Field(min_length=1, max_length=50_000)
 
 
@@ -75,11 +76,26 @@ async def create_run(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> RunOut:
-    agent = await db.scalar(select(Agent).where(Agent.id == body.agent_id))
-    if agent is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Agente no encontrado")
+    if (body.agent_id is None) == (body.team_id is None):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Envía exactamente uno: agent_id o team_id"
+        )
 
-    run = Run(agent_id=agent.id, goal=body.goal, status="queued", created_by=user.id)
+    if body.agent_id is not None:
+        agent = await db.scalar(select(Agent).where(Agent.id == body.agent_id))
+        if agent is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Agente no encontrado")
+    else:
+        from app.models import Team
+
+        team = await db.scalar(select(Team).where(Team.id == body.team_id))
+        if team is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Equipo no encontrado")
+
+    run = Run(
+        agent_id=body.agent_id, team_id=body.team_id, goal=body.goal,
+        status="queued", created_by=user.id,
+    )
     db.add(run)
     await db.commit()
     await db.refresh(run)

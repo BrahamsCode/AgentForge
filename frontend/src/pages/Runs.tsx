@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import type { Agent, Run } from "../lib/types";
+import type { Agent, Run, Team } from "../lib/types";
 
 export default function Runs() {
   const queryClient = useQueryClient();
@@ -11,21 +11,30 @@ export default function Runs() {
     queryKey: ["agents"],
     queryFn: () => api<Agent[]>("/api/agents"),
   });
+  const { data: teams } = useQuery({
+    queryKey: ["teams"],
+    queryFn: () => api<Team[]>("/api/teams"),
+  });
   const { data: runs, isLoading } = useQuery({
     queryKey: ["runs"],
     queryFn: () => api<Run[]>("/api/runs"),
     refetchInterval: 5000,
   });
 
-  const [agentId, setAgentId] = useState("");
+  // executor: "agent:<id>" o "team:<id>"
+  const [executor, setExecutor] = useState("");
   const [goal, setGoal] = useState("");
 
   const launch = useMutation({
-    mutationFn: () =>
-      api<Run>("/api/runs", {
+    mutationFn: () => {
+      const [kind, id] = executor.split(":");
+      return api<Run>("/api/runs", {
         method: "POST",
-        body: JSON.stringify({ agent_id: agentId, goal }),
-      }),
+        body: JSON.stringify(
+          kind === "team" ? { team_id: id, goal } : { agent_id: id, goal },
+        ),
+      });
+    },
     onSuccess: (run) => {
       queryClient.invalidateQueries({ queryKey: ["runs"] });
       navigate(`/runs/${run.id}`);
@@ -44,14 +53,27 @@ export default function Runs() {
       <div className="panel">
         <h2>Lanzar run</h2>
         <form onSubmit={submit}>
-          <label>Agente</label>
-          <select value={agentId} onChange={(e) => setAgentId(e.target.value)} required>
-            <option value="">— elige un agente —</option>
-            {agents?.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({a.model_name})
-              </option>
-            ))}
+          <label>Ejecutor (agente o equipo)</label>
+          <select value={executor} onChange={(e) => setExecutor(e.target.value)} required>
+            <option value="">— elige agente o equipo —</option>
+            {agents && agents.length > 0 && (
+              <optgroup label="Agentes">
+                {agents.map((a) => (
+                  <option key={a.id} value={`agent:${a.id}`}>
+                    {a.name} ({a.model_name})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {teams && teams.length > 0 && (
+              <optgroup label="Equipos (multi-agente)">
+                {teams.map((t) => (
+                  <option key={t.id} value={`team:${t.id}`}>
+                    ⚙ {t.name} — {t.members.length} miembros
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <label>Objetivo</label>
           <textarea
@@ -62,7 +84,7 @@ export default function Runs() {
           />
           {launch.error && <p className="error-text">{launch.error.message}</p>}
           <div style={{ marginTop: 10 }}>
-            <button disabled={launch.isPending || !agentId || !goal.trim()}>
+            <button disabled={launch.isPending || !executor || !goal.trim()}>
               {launch.isPending ? "Encolando…" : "Lanzar"}
             </button>
           </div>

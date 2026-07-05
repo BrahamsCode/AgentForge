@@ -14,12 +14,14 @@ def ctx(tmp_path):
 def test_default_tools_registered():
     tools = get_default_tools()
     names = {t.name for t in tools}
-    assert names == {"web_search", "web_fetch", "read_file", "write_file"}
+    assert names == {
+        "web_search", "web_fetch", "read_file", "write_file", "run_python", "search_memory",
+    }
     for tool in tools:
         assert tool.input_schema.get("type") == "object"
         assert tool.risk_level in ("safe", "sensitive", "dangerous")
         assert get_tool(tool.name) is tool
-    assert len(list_tools()) >= 4
+    assert len(list_tools()) >= 6
 
 
 async def test_write_then_read(ctx):

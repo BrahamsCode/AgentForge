@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import agents, auth, memory, runs
+from app.routers import agents, auth, memory, runs, teams
 
 app = FastAPI(
     title="AgentForge API",
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(agents.router)
+app.include_router(teams.router)
 app.include_router(runs.router)
 app.include_router(memory.router)
 

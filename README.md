@@ -67,10 +67,10 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 
 - [x] **Fase 0 — Fundaciones**: monorepo, Docker Compose, FastAPI + JWT, Alembic, CRUD de agentes, cliente LLM multi-proveedor con costos
 - [x] **Fase 1 — Agente único con herramientas**: loop agéntico (razonar → herramienta → observar) con tool calling nativo por proveedor, herramientas `web_search`/`web_fetch`/`read_file`/`write_file` (sandbox de paths y marcado de contenido no confiable), worker con Redis Streams (consumer group + XAUTOCLAIM), trace completo en `trace_steps`, checkpoints y presupuestos duros, API de runs con SSE en vivo, y frontend (agentes, runs, trace en vivo)
-- [x] **Fase 2 — Memoria (RAG)**: pgvector con índices HNSW, chunking con solape, embedders OpenAI/Ollama/hash, herramienta `search_memory`, subida y búsqueda de documentos *(pendiente de la fase: sandbox `run_python` en Docker y compresión de contexto)*
-- [ ] Fase 3 — Orquestación multi-agente (grafo plan → delegate → collect → evaluate → synthesize + resiliencia O4)
-- [ ] Fase 4 — Human-in-the-loop y seguridad (aprobaciones para tools sensitive/dangerous)
-- [ ] Fase 5 — Programación, métricas y pulido
+- [x] **Fase 2 — Sandbox y memoria**: herramienta `run_python` en contenedores Docker efímeros (sin red, límites de CPU/RAM/pids, rootfs de solo lectura), compresión de contexto para runs largos, RAG con pgvector (índices HNSW), chunking con solape, embedders OpenAI/Ollama/hash, herramienta `search_memory` y endpoints de documentos
+- [x] **Fase 3 — Orquestación multi-agente**: grafo `plan → delegate → collect → synthesize` con checkpointing fase a fase en `runs.checkpoint`, plan JSON del orquestador con DAG de dependencias, sub-agentes en paralelo por olas (hasta 4 simultáneos), presupuesto de equipo, reanudación tras caída del worker (O4) y equipos en el panel (crear equipo + lanzar runs de equipo)
+- [ ] Fase 4 — Human-in-the-loop y seguridad (aprobaciones para tools sensitive/dangerous, guardrails)
+- [ ] Fase 5 — Programación, métricas y pulido (cron, webhooks, dashboard de costos, suite de evals)
 
 Ver el detalle de cada fase en [docs/DESIGN.md](docs/DESIGN.md#8-roadmap-por-fases).
 

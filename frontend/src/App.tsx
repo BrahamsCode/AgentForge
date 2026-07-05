@@ -5,6 +5,7 @@ import Agents from "./pages/Agents";
 import Login from "./pages/Login";
 import RunDetail from "./pages/RunDetail";
 import Runs from "./pages/Runs";
+import Teams from "./pages/Teams";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = useAuth((s) => s.token);
@@ -22,6 +23,7 @@ function Layout({ children }: { children: JSX.Element }) {
           Agent<span>Forge</span>
         </div>
         <NavLink to="/agents">Agentes</NavLink>
+        <NavLink to="/teams">Equipos</NavLink>
         <NavLink to="/runs">Runs</NavLink>
         <div className="spacer" />
         <div className="user">{email}</div>
@@ -44,6 +46,16 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <Agents />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/teams"
+        element={
+          <RequireAuth>
+            <Layout>
+              <Teams />
             </Layout>
           </RequireAuth>
         }

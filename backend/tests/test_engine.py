@@ -80,7 +80,7 @@ class ScriptedSession:
 
 def make_run_agent(**agent_overrides):
     run = SimpleNamespace(
-        id=uuid.uuid4(), agent_id=uuid.uuid4(), goal="objetivo de prueba",
+        id=uuid.uuid4(), agent_id=uuid.uuid4(), team_id=None, goal="objetivo de prueba",
         status="queued", checkpoint=None, error=None,
         total_cost_usd=0.0, total_tokens=0, started_at=None, finished_at=None,
     )

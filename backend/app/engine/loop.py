@@ -58,6 +58,18 @@ async def execute_run(
         if run.status not in ("queued", "running"):
             logger.info("Run %s en estado %s; no se ejecuta", run_id, run.status)
             return
+        if run.team_id is not None and run.agent_id is None:
+            # Run de equipo: lo maneja el orquestador multi-agente (Fase 3).
+            from app.engine.orchestrator import execute_team_run
+
+            await execute_team_run(
+                run_id,
+                session_factory=session_factory,
+                session_cls=session_cls,
+                tools=tools,
+                publish=publish,
+            )
+            return
         agent = await db.scalar(select(Agent).where(Agent.id == run.agent_id))
         if agent is None:
             await _finish(db, run, publish, status="failed", error="El run no tiene agente")
@@ -142,6 +154,12 @@ async def execute_run(
                         },
                     )
                     return
+
+                # Compresión de contexto en runs largos: truncar resultados de
+                # herramientas antiguos antes de la siguiente llamada LLM.
+                compact = getattr(session, "compact", None)
+                if compact is not None and len(session.export_messages()) > 20:
+                    compact()
 
                 outcome = await session.send_tool_results(results)
 

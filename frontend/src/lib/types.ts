@@ -31,6 +31,21 @@ export interface AskResponse {
   latency_ms: number;
 }
 
+export interface TeamMember {
+  agent_id: string;
+  agent_name: string;
+  specialty: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string;
+  orchestrator_agent_id: string | null;
+  created_at: string;
+  members: TeamMember[];
+}
+
 export interface Run {
   id: string;
   agent_id: string | null;

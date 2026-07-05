@@ -49,6 +49,15 @@ class StepOutcome:
     latency_ms: int = 0
 
 
+def _truncate(text: str, max_chars: int) -> tuple[str, int]:
+    if len(text) <= max_chars:
+        return text, 0
+    head = text[: max_chars // 2]
+    tail = text[-(max_chars // 4) :]
+    omitted = len(text) - len(head) - len(tail)
+    return f"{head}\n… [comprimido: {omitted} caracteres omitidos] …\n{tail}", 1
+
+
 def _tool_spec(tool: Any) -> dict:
     """Extrae (name, description, input_schema) de un Tool del contrato app.tools."""
     return {
@@ -110,6 +119,31 @@ class ToolCallingSession:
     def export_messages(self) -> list:
         """Historial serializable (para checkpoint/reanudación)."""
         return json.loads(json.dumps(self._messages, default=str))
+
+    def compact(self, *, keep_last: int = 6, max_chars: int = 1500) -> int:
+        """Compresión de contexto para runs largos (DESIGN.md sección 9).
+
+        Trunca los resultados de herramientas de mensajes ANTIGUOS (todos menos
+        los últimos `keep_last`) a `max_chars` caracteres (cabeza+cola). Nunca
+        toca mensajes assistant: los bloques thinking/tool_use deben volver al
+        proveedor intactos. Devuelve cuántos resultados truncó.
+        """
+        truncated = 0
+        old_messages = self._messages[:-keep_last] if keep_last > 0 else self._messages
+        for message in old_messages:
+            if message.get("role") == "tool" and isinstance(message.get("content"), str):
+                message["content"], did = _truncate(message["content"], max_chars)
+                truncated += did
+            elif message.get("role") == "user" and isinstance(message.get("content"), list):
+                for block in message["content"]:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "tool_result"
+                        and isinstance(block.get("content"), str)
+                    ):
+                        block["content"], did = _truncate(block["content"], max_chars)
+                        truncated += did
+        return truncated
 
     # ------------------------------------------------------------ internos
 
