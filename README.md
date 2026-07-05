@@ -30,7 +30,14 @@ pip install -e ".[dev]"
 alembic upgrade head
 uvicorn app.main:app --reload
 
-# 4. Probar
+# 4. Worker (en otra terminal, mismo venv)
+python worker.py
+
+# 5. Frontend (en otra terminal)
+cd ../frontend
+npm install && npm run dev   # http://localhost:5173
+
+# 6. API docs
 open http://localhost:8000/docs
 ```
 
@@ -59,10 +66,10 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 ## Estado del roadmap
 
 - [x] **Fase 0 — Fundaciones**: monorepo, Docker Compose, FastAPI + JWT, Alembic, CRUD de agentes, cliente LLM multi-proveedor con costos
-- [ ] Fase 1 — Agente único con herramientas (worker + Redis Streams + trace + SSE)
-- [ ] Fase 2 — Sandbox de código y memoria (RAG con pgvector)
-- [ ] Fase 3 — Orquestación multi-agente (LangGraph + checkpointing)
-- [ ] Fase 4 — Human-in-the-loop y seguridad
+- [x] **Fase 1 — Agente único con herramientas**: loop agéntico (razonar → herramienta → observar) con tool calling nativo por proveedor, herramientas `web_search`/`web_fetch`/`read_file`/`write_file` (sandbox de paths y marcado de contenido no confiable), worker con Redis Streams (consumer group + XAUTOCLAIM), trace completo en `trace_steps`, checkpoints y presupuestos duros, API de runs con SSE en vivo, y frontend (agentes, runs, trace en vivo)
+- [x] **Fase 2 — Memoria (RAG)**: pgvector con índices HNSW, chunking con solape, embedders OpenAI/Ollama/hash, herramienta `search_memory`, subida y búsqueda de documentos *(pendiente de la fase: sandbox `run_python` en Docker y compresión de contexto)*
+- [ ] Fase 3 — Orquestación multi-agente (grafo plan → delegate → collect → evaluate → synthesize + resiliencia O4)
+- [ ] Fase 4 — Human-in-the-loop y seguridad (aprobaciones para tools sensitive/dangerous)
 - [ ] Fase 5 — Programación, métricas y pulido
 
 Ver el detalle de cada fase en [docs/DESIGN.md](docs/DESIGN.md#8-roadmap-por-fases).
