@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret"
     jwt_expires_minutes: int = 1440
 
+    # Aprobaciones human-in-the-loop
+    approval_timeout_seconds: int = 900  # 15 min; al agotarse se rechaza la acción
+    approval_poll_seconds: float = 2.0
+
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"

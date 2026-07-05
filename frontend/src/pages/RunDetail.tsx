@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, eventsUrl } from "../lib/api";
-import type { Run, RunEvent, TraceStep } from "../lib/types";
+import type { Approval, Run, RunEvent, TraceStep } from "../lib/types";
 
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 
@@ -22,6 +22,26 @@ export default function RunDetail() {
     enabled: !!runId,
   });
 
+  const { data: approvals } = useQuery({
+    queryKey: ["approvals", runId],
+    queryFn: () => api<Approval[]>(`/api/runs/${runId}/approvals?only_pending=true`),
+    enabled: !!runId,
+    refetchInterval: (query) =>
+      (query.state.data as Approval[] | undefined)?.length ? 3000 : false,
+  });
+
+  const decide = useMutation({
+    mutationFn: (vars: { approvalId: string; decision: "approved" | "rejected" }) =>
+      api<Approval>(`/api/runs/${runId}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ approval_id: vars.approvalId, decision: vars.decision }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["approvals", runId] });
+      queryClient.invalidateQueries({ queryKey: ["run", runId] });
+    },
+  });
+
   const [liveEvents, setLiveEvents] = useState<RunEvent[]>([]);
   const sourceRef = useRef<EventSource | null>(null);
 
@@ -36,6 +56,10 @@ export default function RunDetail() {
       try {
         const event = JSON.parse(message.data) as RunEvent;
         setLiveEvents((prev) => [...prev, event]);
+        if (event.type === "approval_required" || event.type === "approval_decided") {
+          queryClient.invalidateQueries({ queryKey: ["approvals", runId] });
+          queryClient.invalidateQueries({ queryKey: ["run", runId] });
+        }
         if (event.type === "run_finished" || event.type === "run_cancelled") {
           source.close();
           sourceRef.current = null;
@@ -86,6 +110,36 @@ export default function RunDetail() {
           {run.error && <span className="error-text"> · {run.error}</span>}
         </p>
       </div>
+
+      {approvals && approvals.length > 0 && (
+        <div className="panel" style={{ borderColor: "var(--warn)" }}>
+          <h2 style={{ color: "var(--warn)" }}>⚠ Aprobación requerida (human-in-the-loop)</h2>
+          {approvals.map((approval) => (
+            <div key={approval.id} className="step" style={{ borderLeftColor: "var(--warn)" }}>
+              <div>{approval.action_summary}</div>
+              <div className="row" style={{ marginTop: 8 }}>
+                <button
+                  disabled={decide.isPending}
+                  onClick={() =>
+                    decide.mutate({ approvalId: approval.id, decision: "approved" })
+                  }
+                >
+                  Aprobar
+                </button>
+                <button
+                  className="danger"
+                  disabled={decide.isPending}
+                  onClick={() =>
+                    decide.mutate({ approvalId: approval.id, decision: "rejected" })
+                  }
+                >
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {run.final_answer && (
         <div className="panel">

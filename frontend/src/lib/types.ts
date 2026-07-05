@@ -74,8 +74,22 @@ export interface TraceStep {
   created_at: string;
 }
 
+export interface Approval {
+  id: string;
+  run_id: string;
+  action_summary: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  decided_at: string | null;
+}
+
 export interface RunEvent {
-  type: "step" | "run_finished" | "run_cancelled";
+  type:
+    | "step"
+    | "run_finished"
+    | "run_cancelled"
+    | "approval_required"
+    | "approval_decided";
   run_id?: string;
   agent?: string;
   kind?: "llm_call" | "tool_call";
@@ -85,4 +99,6 @@ export interface RunEvent {
   cost_usd?: number;
   error?: boolean | string | null;
   status?: RunStatus;
+  approval_id?: string;
+  decision?: string;
 }

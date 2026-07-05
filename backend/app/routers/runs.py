@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import Agent, Run, TraceStep, User
+from app.models import Agent, Approval, Run, TraceStep, User
 from app.security import get_current_user
 from app.sse import get_user_from_header_or_query, run_event_stream
 
@@ -46,6 +46,22 @@ class RunOut(BaseModel):
         if run.checkpoint:
             out.final_answer = run.checkpoint.get("final_answer")
         return out
+
+
+class ApprovalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    run_id: uuid.UUID
+    action_summary: str
+    status: str
+    created_at: datetime
+    decided_at: datetime | None
+
+
+class ApprovalDecision(BaseModel):
+    approval_id: uuid.UUID
+    decision: str  # approved | rejected
 
 
 class TraceStepOut(BaseModel):
@@ -165,6 +181,46 @@ async def cancel_run(
 
     await publish_event(str(run.id), {"type": "run_cancelled", "run_id": str(run.id)})
     return RunOut.from_run(run)
+
+
+@router.get("/{run_id}/approvals", response_model=list[ApprovalOut])
+async def list_approvals(
+    run_id: uuid.UUID,
+    only_pending: bool = Query(default=False),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> list[Approval]:
+    await _get_run_or_404(run_id, db)
+    query = select(Approval).where(Approval.run_id == run_id)
+    if only_pending:
+        query = query.where(Approval.status == "pending")
+    result = await db.scalars(query.order_by(Approval.created_at))
+    return list(result)
+
+
+@router.post("/{run_id}/approve", response_model=ApprovalOut)
+async def decide_approval(
+    run_id: uuid.UUID,
+    body: ApprovalDecision,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Approval:
+    if body.decision not in ("approved", "rejected"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "decision debe ser approved|rejected")
+    approval = await db.scalar(
+        select(Approval).where(Approval.id == body.approval_id, Approval.run_id == run_id)
+    )
+    if approval is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Aprobación no encontrada")
+    if approval.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"La aprobación ya está {approval.status}")
+
+    approval.status = body.decision
+    approval.decided_by = user.id
+    approval.decided_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(approval)
+    return approval
 
 
 @router.get("/{run_id}/events")

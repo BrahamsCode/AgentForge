@@ -14,8 +14,9 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.engine.guardrails import evaluate_tool
 from app.llm.toolcalling import StepOutcome, ToolCallingSession
-from app.models import Agent, Run, TraceStep
+from app.models import Agent, Approval, Run, TraceStep
 
 logger = logging.getLogger(__name__)
 
@@ -124,18 +125,32 @@ async def execute_run(
                     if tool is None:
                         result, is_error = f"Herramienta desconocida: {call.name}", True
                     else:
-                        try:
-                            result = await asyncio.wait_for(
-                                tool.run(call.args, ctx), timeout=tool.timeout_seconds
+                        # Human-in-the-loop: herramientas de riesgo requieren aprobación (O5).
+                        decision, reason = evaluate_tool(tool, call.args)
+                        approved = True
+                        if decision == "ask":
+                            approved = await _await_approval(
+                                db, run, step_number, call, reason, publish
                             )
-                            is_error = False
-                        except ToolError as exc:
-                            result, is_error = f"Error de la herramienta: {exc}", True
-                        except TimeoutError:
+                            if run.status == "cancelled":
+                                return
+                        if not approved:
                             result, is_error = (
-                                f"Timeout de {call.name} tras {tool.timeout_seconds}s",
-                                True,
+                                f"Acción rechazada por el humano: {call.name}", True
                             )
+                        else:
+                            try:
+                                result = await asyncio.wait_for(
+                                    tool.run(call.args, ctx), timeout=tool.timeout_seconds
+                                )
+                                is_error = False
+                            except ToolError as exc:
+                                result, is_error = f"Error de la herramienta: {exc}", True
+                            except TimeoutError:
+                                result, is_error = (
+                                    f"Timeout de {call.name} tras {tool.timeout_seconds}s",
+                                    True,
+                                )
                     latency_ms = int((asyncio.get_event_loop().time() - started) * 1000)
                     results.append((call.id, result, is_error))
                     await _record_tool_step(
@@ -173,6 +188,69 @@ async def execute_run(
                 )
             )
             await _finish(db, run, publish, status="failed", error=str(exc)[:2000])
+
+
+async def _await_approval(db, run, step_number, call, reason, publish) -> bool:
+    """Pausa el run en awaiting_approval y sondea la decisión humana.
+
+    Devuelve True si se aprobó, False si se rechazó o venció el timeout. Si el
+    run se cancela mientras espera, deja run.status == "cancelled".
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    summary = f"{call.name}({_summarize_args(call.args)}) — {reason}"
+    approval = Approval(run_id=run.id, action_summary=summary, status="pending")
+    db.add(approval)
+    run.status = "awaiting_approval"
+    await db.commit()
+    await db.refresh(approval)
+    await publish(
+        str(run.id),
+        {
+            "type": "approval_required", "run_id": str(run.id),
+            "approval_id": str(approval.id), "step": step_number,
+            "tool": call.name, "summary": summary,
+        },
+    )
+
+    waited = 0.0
+    while waited < settings.approval_timeout_seconds:
+        await asyncio.sleep(settings.approval_poll_seconds)
+        waited += settings.approval_poll_seconds
+        await db.refresh(approval)
+        await db.refresh(run)
+        if run.status == "cancelled":
+            return False
+        if approval.status == "approved":
+            run.status = "running"
+            await db.commit()
+            await publish(
+                str(run.id),
+                {"type": "approval_decided", "approval_id": str(approval.id),
+                 "decision": "approved"},
+            )
+            return True
+        if approval.status == "rejected":
+            run.status = "running"
+            await db.commit()
+            await publish(
+                str(run.id),
+                {"type": "approval_decided", "approval_id": str(approval.id),
+                 "decision": "rejected"},
+            )
+            return False
+
+    # Timeout: se rechaza automáticamente y el run continúa (el LLM recibe el rechazo).
+    approval.status = "rejected"
+    approval.decided_at = datetime.now(UTC)
+    run.status = "running"
+    await db.commit()
+    await publish(
+        str(run.id),
+        {"type": "approval_decided", "approval_id": str(approval.id), "decision": "timeout"},
+    )
+    return False
 
 
 async def _record_llm_step(db, run, agent, step_number, outcome: StepOutcome, session, publish):
