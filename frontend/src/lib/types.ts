@@ -129,3 +129,27 @@ export interface RunEvent {
   approval_id?: string;
   decision?: string;
 }
+
+export interface TemplateMemberSpec {
+  name: string;
+  role: string;
+  model_provider: Provider;
+  model_name: string;
+  system_prompt?: string;
+  specialty?: string;
+}
+
+export interface TemplateSpec {
+  orchestrator: TemplateMemberSpec;
+  members: TemplateMemberSpec[];
+}
+
+export interface TeamTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  spec: TemplateSpec;
+  is_builtin: boolean;
+  created_at: string;
+}

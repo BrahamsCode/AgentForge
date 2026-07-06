@@ -12,6 +12,7 @@ import Orgs from "./pages/Orgs";
 import RunDetail from "./pages/RunDetail";
 import Runs from "./pages/Runs";
 import Teams from "./pages/Teams";
+import Templates from "./pages/Templates";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = useAuth((s) => s.token);
@@ -67,6 +68,7 @@ function Layout({ children }: { children: JSX.Element }) {
         <OrgSelector />
         <NavLink to="/agents">Agentes</NavLink>
         <NavLink to="/teams">Equipos</NavLink>
+        <NavLink to="/templates">Plantillas</NavLink>
         <NavLink to="/runs">Runs</NavLink>
         <NavLink to="/metrics">Métricas</NavLink>
         <NavLink to="/orgs">Organizaciones</NavLink>
@@ -101,6 +103,16 @@ export default function App() {
           <RequireAuth>
             <Layout>
               <Teams />
+            </Layout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/templates"
+        element={
+          <RequireAuth>
+            <Layout>
+              <Templates />
             </Layout>
           </RequireAuth>
         }
