@@ -41,14 +41,21 @@ de recursos ajenos. El SSE, que se autentica por token en query (sin header),
 exige pertenencia del usuario a la organización del run. Severidad media porque
 los IDs son UUID v4 no enumerables.
 
+### 2. Métricas agregadas sin scoping por organización (severidad: baja)
+
+`GET /api/metrics/costs` agregaba costos, tokens y uso de herramientas sobre
+**todos** los runs, filtrando por fecha pero no por organización — fuga de
+información agregada entre tenants.
+
+**Corrección:** el endpoint toma la organización activa y filtra las cuatro
+consultas por `Run.org_id == (org.id if org else None)`.
+
 ## Riesgos residuales conocidos (backlog de endurecimiento)
 
 - **Contexto personal compartido entre usuarios**: los recursos sin organización
   (`org_id NULL`) no están scopeados por `created_by`, así que en modo personal
   varios usuarios comparten espacio. Recomendado: filtrar también por
   `created_by` en el contexto personal, o exigir siempre organización.
-- **Métricas agregadas sin scoping por organización**: `GET /api/metrics/costs`
-  agrega sobre todos los runs. Debería filtrarse por la organización activa.
 - **Rate limiting de autenticación**: no hay límite de intentos de login; se
   recomienda añadirlo (p. ej. por IP/usuario) en el gateway.
 - **JWT_SECRET**: debe fijarse a un valor fuerte en producción (el default es de

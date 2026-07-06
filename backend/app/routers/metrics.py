@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db
 from app.models import Agent, Run, TraceStep, User
 from app.security import get_current_user
+from app.tenancy.deps import get_active_org
+from app.tenancy.models import Organization
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
@@ -43,14 +45,16 @@ async def costs(
     since_days: int = Query(default=30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> MetricsSummary:
     since = datetime.now(UTC) - timedelta(days=since_days)
+    org_id = org.id if org else None  # métricas scopeadas a la organización activa
 
     status_rows = (
         await db.execute(
             select(Run.status, func.count(), func.coalesce(func.sum(Run.total_cost_usd), 0.0),
                    func.coalesce(func.sum(Run.total_tokens), 0))
-            .where(Run.created_at >= since)
+            .where(Run.created_at >= since, Run.org_id == org_id)
             .group_by(Run.status)
         )
     ).all()
@@ -72,7 +76,7 @@ async def costs(
             )
             .join(Run, Run.id == TraceStep.run_id)
             .outerjoin(Agent, Agent.id == TraceStep.agent_id)
-            .where(Run.created_at >= since)
+            .where(Run.created_at >= since, Run.org_id == org_id)
             .group_by(TraceStep.agent_id, Agent.name)
             .order_by(func.sum(TraceStep.cost_usd).desc())
         )
@@ -87,7 +91,7 @@ async def costs(
         await db.execute(
             select(TraceStep.input["tool"].astext, func.count())
             .join(Run, Run.id == TraceStep.run_id)
-            .where(TraceStep.kind == "tool_call", Run.created_at >= since)
+            .where(TraceStep.kind == "tool_call", Run.created_at >= since, Run.org_id == org_id)
             .group_by(TraceStep.input["tool"].astext)
             .order_by(func.count().desc())
             .limit(10)
@@ -100,7 +104,7 @@ async def costs(
             select(func.count())
             .select_from(TraceStep)
             .join(Run, Run.id == TraceStep.run_id)
-            .where(Run.created_at >= since)
+            .where(Run.created_at >= since, Run.org_id == org_id)
         )
     ) or 0
 
