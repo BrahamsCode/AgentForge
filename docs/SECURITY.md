@@ -62,10 +62,17 @@ propios (`org_id NULL AND created_by == user.id`). Aplicado en el listado y en
 todos los accesos por ID de agents y runs, y en el SSE (que valida propiedad o
 pertenencia según el caso).
 
+### 4. Sin límite de intentos de login (severidad: baja)
+
+`POST /api/auth/login` no acotaba los intentos → permitía fuerza bruta de
+contraseñas.
+
+**Corrección:** rate limit respaldado por Redis (`app/ratelimit.py`): 10
+intentos fallidos por email cada 5 minutos → `429`; un login correcto limpia el
+contador. Falla abierto si Redis no está disponible (disponibilidad > límite).
+
 ## Riesgos residuales conocidos (backlog de endurecimiento)
 
-- **Rate limiting de autenticación**: no hay límite de intentos de login; se
-  recomienda añadirlo (p. ej. por IP/usuario) en el gateway.
 - **JWT_SECRET**: debe fijarse a un valor fuerte en producción (el default es de
   desarrollo). El compose lo toma de la variable de entorno `JWT_SECRET`.
 - **Egress del sandbox**: `run_python` corre sin red; si en el futuro se habilita
