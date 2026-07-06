@@ -85,7 +85,7 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 
 **v1.0 completa: los objetivos O1–O5 y los 3 casos de uso están cubiertos end-to-end.**
 
-### Backlog v2 (iniciado)
+### Backlog v2 — **completo**
 
 - [x] **Agente navegador** (Playwright): herramienta `browser` con goto/click/type/extract_text/screenshot y sesión headless por run
 - [x] **Soporte MCP**: cliente Model Context Protocol (JSON-RPC sobre Streamable HTTP); configura servidores en `MCP_SERVERS` y sus tools se exponen automáticamente (con gate de aprobación por ser externas)
@@ -93,7 +93,9 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 - [x] **Scoping por organización**: agentes y runs se aíslan por org (header `X-Org-Id`); sin header, contexto personal (compatible hacia atrás). Se aplican los límites diarios de runs y de costo por organización (HTTP 429 al superarlos)
 - [x] **Modo swarm**: lanza un run con `mode: "swarm"` y N clones del agente compiten; un juez selecciona la mejor solución
 - [x] **Comunicación directa entre agentes**: en runs de equipo, cada sub-agente puede enviar mensajes a sus pares (o difundir con `all`) vía las herramientas `send_message` / `check_messages`, sin pasar por el orquestador; mensajes persistidos y visibles en el detalle del run (`/api/runs/{id}/messages`)
-- [ ] Marketplace de plantillas de equipos
+- [x] **Marketplace de plantillas de equipos**: plantillas reutilizables (builtin + propias) que crean un equipo completo de un clic — `/api/templates` y página en el panel
+
+**134 tests · suite de evals sin regresiones · migraciones 0001–0007 · 28 rutas API.**
 
 ## Procesos
 
