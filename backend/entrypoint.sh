@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Espera a Postgres, aplica migraciones y arranca el proceso indicado.
-set -euo pipefail
+set -eu
 
 echo "Esperando a Postgres…"
 until python -c "

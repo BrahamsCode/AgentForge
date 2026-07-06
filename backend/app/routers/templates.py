@@ -62,8 +62,9 @@ async def list_templates(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[TeamTemplate]:
-    await service.seed_builtins(db)  # idempotente
-    return await service.list_templates(db, user.id)
+    stmt = select(TeamTemplate).order_by(TeamTemplate.created_at.desc())
+    result = await db.scalars(stmt)
+    return list(result.all())
 
 
 @router.get("/{template_id}", response_model=TemplateOut)
@@ -72,7 +73,7 @@ async def get_template(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> TeamTemplate:
-    return await _get_template_or_404(db, template_id)
+	return await _get_template_or_404(db, template_id)
 
 
 @router.post(

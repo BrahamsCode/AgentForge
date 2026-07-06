@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Dependencias del sistema mínimas (docker-cli para run_python si se monta el socket)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
     docker.io \
     && rm -rf /var/lib/apt/lists/*
 
