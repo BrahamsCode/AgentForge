@@ -38,7 +38,8 @@ cd infra && docker compose up --build
 - `app/llm/pricing.py` — tabla de precios por modelo.
 - `app/tools/` — capa de herramientas: `Tool` (schema/riesgo/timeout), registry, web_search, web_fetch, files, run_python, browser (Playwright), mcp (cliente MCP). `get_runtime_tools()` = por defecto + tools de servidores MCP configurados.
 - `app/engine/swarm.py` — modo swarm (v2): N clones del agente compiten y un juez elige (run con `checkpoint.mode == "swarm"`).
-- `app/tenancy/` — organizaciones y membresías (v2); router `app/routers/orgs.py`.
+- `app/tenancy/` — organizaciones y membresías (v2); `deps.py` (org activa por header `X-Org-Id` + límites diarios); router `app/routers/orgs.py`.
+- `app/tools/messaging.py` — comunicación directa entre agentes (v2): `send_message`/`check_messages`; el orquestador inyecta identidad+roster en el `ToolContext` de cada tarea.
 - `app/engine/loop.py` — motor single-agent (razonar → herramienta → observar) con checkpoints, presupuestos y gate de aprobación.
 - `app/engine/orchestrator.py` — orquestador multi-agente (grafo plan→delegate→collect→synthesize).
 - `app/engine/guardrails.py` — política de aprobación por riesgo + detección de prompt injection.

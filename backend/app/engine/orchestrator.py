@@ -311,7 +311,7 @@ async def _delegate(run, tasks, members, tools, session_cls, recorder, orchestra
         outcomes = await asyncio.gather(
             *[
                 _execute_task(run, t, agents_by_id[t.agent_id], tools, session_cls,
-                              recorder, results)
+                              recorder, results, members)
                 for t in wave
             ],
             return_exceptions=True,
@@ -340,26 +340,43 @@ def _mark_task(task: Task, status: str, answer: str) -> None:
     task.result = {**(task.result or {}), key: answer if status == "completed" else answer[:1000]}
 
 
-async def _execute_task(run, task, agent, tools, session_cls, recorder, results) -> str:
-    """Sub-loop agéntico de una tarea: como el loop single-agent, sin tocar run.status."""
+async def _execute_task(run, task, agent, tools, session_cls, recorder, results, members) -> str:
+    """Sub-loop agéntico de una tarea: como el loop single-agent, sin tocar run.status.
+
+    El sub-agente recibe su identidad y el roster de pares para poder enviarse
+    mensajes directos (comunicación directa entre agentes, v2).
+    """
     from app.tools.base import ToolContext, ToolError
+    from app.tools.messaging import build_messaging_tools
 
     await recorder.update(lambda: setattr(task, "status", "running"))
     workspace = WORKSPACES_ROOT / str(run.id)
     workspace.mkdir(parents=True, exist_ok=True)
-    ctx = ToolContext(run_id=str(run.id), workspace_dir=workspace)
-    tools_by_name = {t.name: t for t in tools}
+
+    # Roster de pares (todos los miembros menos uno mismo) para la mensajería.
+    roster = {name: str(a.id) for name, a in members.items() if a.id != agent.id}
+    ctx = ToolContext(
+        run_id=str(run.id), workspace_dir=workspace,
+        agent_id=str(agent.id), agent_name=agent.name, roster=roster,
+    )
+    task_tools = list(tools) + build_messaging_tools()
+    tools_by_name = {t.name: t for t in task_tools}
 
     deps_context = ""
     for dep in task.depends_on or []:
         if dep in results:
             deps_context += f"\n\nResultado de la tarea {dep}:\n{results[dep][:4000]}"
 
+    peers = ", ".join(roster) or "(sin pares)"
     session = session_cls(
         provider=agent.model_provider,
         model=agent.model_name,
-        system_prompt=(agent.system_prompt or "") + _TOOL_SUFFIX,
-        tools=tools,
+        system_prompt=(agent.system_prompt or "")
+        + _TOOL_SUFFIX
+        + f"\n\nEres el agente '{agent.name}'. Compañeros de equipo a los que puedes "
+        f"escribir con send_message: {peers}. Revisa tu bandeja con check_messages si "
+        f"esperas coordinación.",
+        tools=task_tools,
     )
     outcome = await session.send_user(
         f"Objetivo global: {run.goal}\n\nTu tarea:\n{task.description}{deps_context}"

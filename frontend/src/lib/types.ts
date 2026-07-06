@@ -83,6 +83,15 @@ export interface Approval {
   decided_at: string | null;
 }
 
+export interface AgentMessage {
+  id: string;
+  from_agent_name: string;
+  to_agent: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+}
+
 export interface RunEvent {
   type:
     | "step"

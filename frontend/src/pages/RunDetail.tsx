@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, eventsUrl } from "../lib/api";
-import type { Approval, Run, RunEvent, TraceStep } from "../lib/types";
+import type { AgentMessage, Approval, Run, RunEvent, TraceStep } from "../lib/types";
 
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 
@@ -20,6 +20,14 @@ export default function RunDetail() {
     queryKey: ["trace", runId],
     queryFn: () => api<TraceStep[]>(`/api/runs/${runId}/trace?limit=200`),
     enabled: !!runId,
+  });
+
+  const runTerminal = run ? TERMINAL.has(run.status) : false;
+  const { data: messages } = useQuery({
+    queryKey: ["messages", runId],
+    queryFn: () => api<AgentMessage[]>(`/api/runs/${runId}/messages`),
+    enabled: !!runId,
+    refetchInterval: runTerminal ? false : 4000,
   });
 
   const { data: approvals } = useQuery({
@@ -138,6 +146,23 @@ export default function RunDetail() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {messages && messages.length > 0 && (
+        <div className="panel">
+          <h2>💬 Mensajes entre agentes</h2>
+          <div className="timeline">
+            {messages.map((m) => (
+              <div key={m.id} className="step" style={{ borderLeftColor: "var(--accent)" }}>
+                <div>
+                  <strong>{m.from_agent_name}</strong> →{" "}
+                  {m.to_agent === "all" ? "todo el equipo" : m.to_agent}
+                </div>
+                <div>{m.content}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

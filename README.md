@@ -92,7 +92,8 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 - [x] **Multi-tenancy**: organizaciones y membresías con roles (owner/admin/member) y límites por plan — `/api/orgs`
 - [x] **Scoping por organización**: agentes y runs se aíslan por org (header `X-Org-Id`); sin header, contexto personal (compatible hacia atrás). Se aplican los límites diarios de runs y de costo por organización (HTTP 429 al superarlos)
 - [x] **Modo swarm**: lanza un run con `mode: "swarm"` y N clones del agente compiten; un juez selecciona la mejor solución
-- [ ] Comunicación directa entre agentes · marketplace de plantillas de equipos
+- [x] **Comunicación directa entre agentes**: en runs de equipo, cada sub-agente puede enviar mensajes a sus pares (o difundir con `all`) vía las herramientas `send_message` / `check_messages`, sin pasar por el orquestador; mensajes persistidos y visibles en el detalle del run (`/api/runs/{id}/messages`)
+- [ ] Marketplace de plantillas de equipos
 
 ## Procesos
 

@@ -29,11 +29,27 @@ class ToolContext:
 
     ``workspace_dir`` es el directorio raíz permitido para operaciones de
     archivos: ninguna herramienta debe leer/escribir fuera de él.
+
+    En runs multi-agente el motor rellena la identidad del agente que ejecuta
+    (``agent_id``/``agent_name``) y el ``roster`` {nombre: id} de sus pares,
+    para que las herramientas de mensajería directa sepan quién envía y a quién
+    puede escribir. En runs single-agent quedan vacíos.
     """
 
-    def __init__(self, run_id: str, workspace_dir: pathlib.Path):
+    def __init__(
+        self,
+        run_id: str,
+        workspace_dir: pathlib.Path,
+        *,
+        agent_id: str | None = None,
+        agent_name: str | None = None,
+        roster: dict[str, str] | None = None,
+    ):
         self.run_id = run_id
         self.workspace_dir = pathlib.Path(workspace_dir)
+        self.agent_id = agent_id
+        self.agent_name = agent_name
+        self.roster = roster or {}
 
 
 class Tool(abc.ABC):

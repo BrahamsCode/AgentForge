@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import Agent, Approval, Run, TraceStep, User
+from app.models import Agent, AgentMessage, Approval, Run, TraceStep, User
 from app.security import get_current_user
 from app.sse import get_user_from_header_or_query, run_event_stream
 from app.tenancy.deps import enforce_daily_limits, get_active_org
@@ -225,6 +225,33 @@ async def cancel_run(
 
     await publish_event(str(run.id), {"type": "run_cancelled", "run_id": str(run.id)})
     return RunOut.from_run(run)
+
+
+class AgentMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    from_agent_name: str
+    to_agent: str
+    content: str
+    read: bool
+    created_at: datetime
+
+
+@router.get("/{run_id}/messages", response_model=list[AgentMessageOut])
+async def list_messages(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> list[AgentMessage]:
+    """Comunicación directa entre agentes durante el run (observabilidad)."""
+    await _get_run_or_404(run_id, db)
+    result = await db.scalars(
+        select(AgentMessage)
+        .where(AgentMessage.run_id == run_id)
+        .order_by(AgentMessage.created_at)
+    )
+    return list(result)
 
 
 @router.get("/{run_id}/approvals", response_model=list[ApprovalOut])
