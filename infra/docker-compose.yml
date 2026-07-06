@@ -1,5 +1,16 @@
 name: agentforge
 
+x-backend-env: &backend_env
+  DATABASE_URL: postgresql+asyncpg://agentforge:agentforge@postgres:5432/agentforge
+  REDIS_URL: redis://redis:6379/0
+  S3_ENDPOINT: http://minio:9000
+  S3_ACCESS_KEY: agentforge
+  S3_SECRET_KEY: agentforge-secret
+  JWT_SECRET: ${JWT_SECRET:-cambia-esto-en-produccion}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -47,6 +58,48 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api:
+    build: ../backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_started }
+    environment:
+      <<: *backend_env
+      RUN_MIGRATIONS: "1"   # solo la API aplica migraciones al arrancar
+    entrypoint: ["bash", "entrypoint.sh"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ../backend
+    depends_on:
+      api: { condition: service_started }
+    environment: *backend_env
+    # Monta el socket de Docker para el sandbox run_python (contenedores efímeros)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["bash", "entrypoint.sh"]
+    command: ["python", "worker.py"]
+    deploy:
+      replicas: 2   # escala horizontal: más workers = más runs en paralelo
+
+  scheduler:
+    build: ../backend
+    depends_on:
+      api: { condition: service_started }
+    environment: *backend_env
+    entrypoint: ["bash", "entrypoint.sh"]
+    command: ["python", "scheduler.py"]
+
+  frontend:
+    build: ../frontend
+    depends_on:
+      api: { condition: service_started }
+    ports:
+      - "5173:80"
 
 volumes:
   pgdata:

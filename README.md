@@ -13,12 +13,23 @@ Plataforma self-hosted de orquestación multi-agente: define agentes de IA espec
 /docs        Diseño y documentación
 ```
 
-## Quick start (Fase 0)
+## Quick start — stack completo (un comando)
 
 ```bash
-# 1. Levantar la infraestructura
 cd infra
-docker compose up -d
+ANTHROPIC_API_KEY=sk-... docker compose up --build
+# API en :8000 · panel en :5173 · MinIO en :9001
+# Levanta Postgres+pgvector, Redis, MinIO, la API (migra sola), 2 workers,
+# el scheduler y el frontend. Luego, para datos demo:
+docker compose exec api python seed.py   # usuario demo@agentforge.dev / demo1234
+```
+
+## Quick start — desarrollo local
+
+```bash
+# 1. Solo la infraestructura de datos
+cd infra
+docker compose up -d postgres redis minio
 
 # 2. Configurar el backend
 cd ../backend
