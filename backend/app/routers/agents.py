@@ -15,8 +15,17 @@ from app.tenancy.models import Organization
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
-async def _get_agent_or_404(agent_id: uuid.UUID, db: AsyncSession) -> Agent:
-    agent = await db.scalar(select(Agent).where(Agent.id == agent_id))
+async def _get_agent_or_404(
+    agent_id: uuid.UUID, db: AsyncSession, org: Organization | None
+) -> Agent:
+    # Scoping por organización: un agente solo es accesible desde el contexto
+    # (personal o de org) en el que fue creado. Si no coincide devolvemos 404
+    # (no 403) para no filtrar la existencia de recursos de otras orgs.
+    agent = await db.scalar(
+        select(Agent).where(
+            Agent.id == agent_id, Agent.org_id == (org.id if org else None)
+        )
+    )
     if agent is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agente no encontrado")
     return agent
@@ -53,8 +62,9 @@ async def get_agent(
     agent_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> Agent:
-    return await _get_agent_or_404(agent_id, db)
+    return await _get_agent_or_404(agent_id, db, org)
 
 
 @router.patch("/{agent_id}", response_model=AgentOut)
@@ -63,8 +73,9 @@ async def update_agent(
     body: AgentUpdate,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> Agent:
-    agent = await _get_agent_or_404(agent_id, db)
+    agent = await _get_agent_or_404(agent_id, db, org)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(agent, field, value)
     await db.commit()
@@ -77,8 +88,9 @@ async def delete_agent(
     agent_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> None:
-    agent = await _get_agent_or_404(agent_id, db)
+    agent = await _get_agent_or_404(agent_id, db, org)
     await db.delete(agent)
     await db.commit()
 
@@ -89,13 +101,14 @@ async def ask_agent(
     body: AskRequest,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> AskResponse:
     """Entregable de la Fase 0: pregunta simple a un agente, sin herramientas.
 
     En la Fase 1 esto se reemplaza por runs encolados en Redis Streams con
     loop agéntico y trace completo.
     """
-    agent = await _get_agent_or_404(agent_id, db)
+    agent = await _get_agent_or_404(agent_id, db, org)
     try:
         result = await get_llm_client().complete(
             provider=agent.model_provider,

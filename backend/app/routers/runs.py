@@ -84,8 +84,13 @@ class TraceStepOut(BaseModel):
     created_at: datetime
 
 
-async def _get_run_or_404(run_id: uuid.UUID, db: AsyncSession) -> Run:
-    run = await db.scalar(select(Run).where(Run.id == run_id))
+async def _get_run_or_404(
+    run_id: uuid.UUID, db: AsyncSession, org: Organization | None = None
+) -> Run:
+    # Scoping por organización (404 en vez de 403 para no filtrar existencia).
+    run = await db.scalar(
+        select(Run).where(Run.id == run_id, Run.org_id == (org.id if org else None))
+    )
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
     return run
@@ -184,8 +189,9 @@ async def get_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> RunOut:
-    return RunOut.from_run(await _get_run_or_404(run_id, db))
+    return RunOut.from_run(await _get_run_or_404(run_id, db, org))
 
 
 @router.get("/{run_id}/trace", response_model=list[TraceStepOut])
@@ -195,8 +201,9 @@ async def get_trace(
     limit: int = Query(default=100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> list[TraceStep]:
-    await _get_run_or_404(run_id, db)
+    await _get_run_or_404(run_id, db, org)
     result = await db.scalars(
         select(TraceStep)
         .where(TraceStep.run_id == run_id)
@@ -212,8 +219,9 @@ async def cancel_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> RunOut:
-    run = await _get_run_or_404(run_id, db)
+    run = await _get_run_or_404(run_id, db, org)
     if run.status in _TERMINAL:
         raise HTTPException(status.HTTP_409_CONFLICT, f"El run ya está {run.status}")
 
@@ -243,9 +251,10 @@ async def list_messages(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> list[AgentMessage]:
     """Comunicación directa entre agentes durante el run (observabilidad)."""
-    await _get_run_or_404(run_id, db)
+    await _get_run_or_404(run_id, db, org)
     result = await db.scalars(
         select(AgentMessage)
         .where(AgentMessage.run_id == run_id)
@@ -260,8 +269,9 @@ async def list_approvals(
     only_pending: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> list[Approval]:
-    await _get_run_or_404(run_id, db)
+    await _get_run_or_404(run_id, db, org)
     query = select(Approval).where(Approval.run_id == run_id)
     if only_pending:
         query = query.where(Approval.status == "pending")
@@ -275,9 +285,11 @@ async def decide_approval(
     body: ApprovalDecision,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> Approval:
     if body.decision not in ("approved", "rejected"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "decision debe ser approved|rejected")
+    await _get_run_or_404(run_id, db, org)  # verifica acceso al run por org
     approval = await db.scalar(
         select(Approval).where(Approval.id == body.approval_id, Approval.run_id == run_id)
     )
@@ -298,9 +310,19 @@ async def decide_approval(
 async def run_events(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_user_from_header_or_query),
+    user: User = Depends(get_user_from_header_or_query),
 ) -> StreamingResponse:
-    run = await _get_run_or_404(run_id, db)
+    # El SSE se autentica por token en query (EventSource no manda headers), así
+    # que aquí no hay header X-Org-Id: si el run pertenece a una organización,
+    # se exige que el usuario sea miembro; los runs personales (org_id NULL) no.
+    run = await db.scalar(select(Run).where(Run.id == run_id))
+    if run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
+    if run.org_id is not None:
+        from app.tenancy.service import get_membership
+
+        if await get_membership(db, run.org_id, user.id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
     return StreamingResponse(
         run_event_stream(str(run_id), run_is_terminal=run.status in _TERMINAL),
         media_type="text/event-stream",
