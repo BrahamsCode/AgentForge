@@ -95,7 +95,11 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 - [x] **Comunicación directa entre agentes**: en runs de equipo, cada sub-agente puede enviar mensajes a sus pares (o difundir con `all`) vía las herramientas `send_message` / `check_messages`, sin pasar por el orquestador; mensajes persistidos y visibles en el detalle del run (`/api/runs/{id}/messages`)
 - [x] **Marketplace de plantillas de equipos**: plantillas reutilizables (builtin + propias) que crean un equipo completo de un clic — `/api/templates` y página en el panel
 
-**134 tests · suite de evals sin regresiones · migraciones 0001–0007 · 28 rutas API.**
+**138 tests · suite de evals sin regresiones · migraciones 0001–0007 · 28 rutas API.**
+
+## Seguridad
+
+Revisión de seguridad documentada en [`docs/SECURITY.md`](docs/SECURITY.md): sandbox Docker sin red con límites de recursos, sandboxing de rutas de archivos, marcado de contenido externo no confiable (prompt injection), human-in-the-loop para herramientas de riesgo, Argon2 + JWT, aislamiento por organización y por usuario en todos los accesos, métricas scopeadas, y rate limiting de login. Ver también [`docs/API.md`](docs/API.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) y [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Procesos
 
