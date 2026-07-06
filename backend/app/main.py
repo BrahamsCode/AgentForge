@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import agents, auth, memory, metrics, orgs, runs, teams
+from app.routers import agents, auth, memory, metrics, orgs, runs, teams, templates
 
 app = FastAPI(
     title="AgentForge API",
@@ -24,6 +24,7 @@ app.include_router(runs.router)
 app.include_router(memory.router)
 app.include_router(metrics.router)
 app.include_router(orgs.router)
+app.include_router(templates.router)
 
 
 @app.get("/health", tags=["ops"])
