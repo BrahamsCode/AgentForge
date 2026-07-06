@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.db import Base
 from app import models  # noqa: F401 — registra las tablas en Base.metadata
 from app.memory import models as memory_models  # noqa: F401
+from app.tenancy import models as tenancy_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

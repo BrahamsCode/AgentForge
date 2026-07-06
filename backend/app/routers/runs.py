@@ -24,6 +24,7 @@ class RunCreate(BaseModel):
     goal: str = Field(min_length=1, max_length=50_000)
     schedule_cron: str | None = None  # si se envía, crea una plantilla programada
     webhook_url: str | None = None  # notificación al terminar cada run (CU-3)
+    mode: str | None = None  # "swarm" (v2): N clones compiten y un juez elige
 
 
 class RunOut(BaseModel):
@@ -110,7 +111,16 @@ async def create_run(
         if team is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Equipo no encontrado")
 
-    notify = {"webhook_url": body.webhook_url} if body.webhook_url else None
+    if body.mode is not None and body.mode != "swarm":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "mode solo admite 'swarm'")
+    if body.mode == "swarm" and body.agent_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El modo swarm requiere agent_id")
+
+    extra: dict = {}
+    if body.webhook_url:
+        extra["notify"] = {"webhook_url": body.webhook_url}
+    if body.mode == "swarm":
+        extra["mode"] = "swarm"
 
     if body.schedule_cron:
         # Validación del cron y creación de plantilla (no se encola).
@@ -123,7 +133,7 @@ async def create_run(
         run = Run(
             agent_id=body.agent_id, team_id=body.team_id, goal=body.goal,
             status="scheduled", schedule_cron=body.schedule_cron,
-            checkpoint={"notify": notify} if notify else None, created_by=user.id,
+            checkpoint=extra or None, created_by=user.id,
         )
         db.add(run)
         await db.commit()
@@ -132,7 +142,7 @@ async def create_run(
 
     run = Run(
         agent_id=body.agent_id, team_id=body.team_id, goal=body.goal,
-        status="queued", checkpoint={"notify": notify} if notify else None,
+        status="queued", checkpoint=extra or None,
         created_by=user.id,
     )
     db.add(run)

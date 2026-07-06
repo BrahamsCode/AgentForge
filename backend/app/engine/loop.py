@@ -45,9 +45,9 @@ async def execute_run(
     if publish is None:
         from app.queue.bus import publish_event as publish
     if tools is None:
-        from app.tools import get_default_tools
+        from app.tools import get_runtime_tools
 
-        tools = get_default_tools()
+        tools = await get_runtime_tools()
     if session_cls is None:
         session_cls = ToolCallingSession
 
@@ -58,6 +58,18 @@ async def execute_run(
             return
         if run.status not in ("queued", "running"):
             logger.info("Run %s en estado %s; no se ejecuta", run_id, run.status)
+            return
+        if (run.checkpoint or {}).get("mode") == "swarm":
+            # Modo swarm (v2): N agentes compiten y un juez elige la mejor solución.
+            from app.engine.swarm import execute_swarm_run
+
+            await execute_swarm_run(
+                run_id,
+                session_factory=session_factory,
+                session_cls=session_cls,
+                tools=tools,
+                publish=publish,
+            )
             return
         if run.team_id is not None and run.agent_id is None:
             # Run de equipo: lo maneja el orquestador multi-agente (Fase 3).

@@ -23,6 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Agente con navegador (v2). Instalar aparte: pip install -e ".[browser]"
+# y luego `playwright install chromium` (o usar el Chromium preinstalado).
+browser = [
+    "playwright>=1.48",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

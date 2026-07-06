@@ -1,5 +1,7 @@
+import json
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +26,16 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
+
+    # Servidores MCP (v2): JSON con lista de {name, url, headers?}
+    mcp_servers: list[dict] = []
+
+    @field_validator("mcp_servers", mode="before")
+    @classmethod
+    def _parse_mcp_servers(cls, value):
+        if isinstance(value, str):
+            return json.loads(value) if value.strip() else []
+        return value
 
 
 @lru_cache

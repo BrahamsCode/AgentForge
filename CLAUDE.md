@@ -36,7 +36,9 @@ cd infra && docker compose up --build
 - `app/llm/client.py` — cliente LLM simple multi-proveedor (Anthropic/OpenAI/Ollama) con costos.
 - `app/llm/toolcalling.py` — tool calling nativo por proveedor + `compact()` (compresión de contexto).
 - `app/llm/pricing.py` — tabla de precios por modelo.
-- `app/tools/` — capa de herramientas: `Tool` (schema/riesgo/timeout), registry, web_search, web_fetch, files, run_python.
+- `app/tools/` — capa de herramientas: `Tool` (schema/riesgo/timeout), registry, web_search, web_fetch, files, run_python, browser (Playwright), mcp (cliente MCP). `get_runtime_tools()` = por defecto + tools de servidores MCP configurados.
+- `app/engine/swarm.py` — modo swarm (v2): N clones del agente compiten y un juez elige (run con `checkpoint.mode == "swarm"`).
+- `app/tenancy/` — organizaciones y membresías (v2); router `app/routers/orgs.py`.
 - `app/engine/loop.py` — motor single-agent (razonar → herramienta → observar) con checkpoints, presupuestos y gate de aprobación.
 - `app/engine/orchestrator.py` — orquestador multi-agente (grafo plan→delegate→collect→synthesize).
 - `app/engine/guardrails.py` — política de aprobación por riesgo + detección de prompt injection.
@@ -56,4 +58,4 @@ cd infra && docker compose up --build
 
 ## Estado
 
-v1.0 completa: fases 0–5 del roadmap, objetivos O1–O5 y los 3 casos de uso cubiertos. Próximo: backlog v2 en `docs/DESIGN.md` sección 11 (browser agent, MCP, multi-tenancy, modo swarm).
+v1.0 completa (fases 0–5, objetivos O1–O5, 3 casos de uso). Backlog v2 iniciado: agente navegador (Playwright), soporte MCP, multi-tenancy (orgs/membresías) y modo swarm — ya integrados. Pendiente de v2: scoping de agents/runs por organización, comunicación directa entre agentes, marketplace de plantillas.

@@ -85,6 +85,14 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 
 **v1.0 completa: los objetivos O1–O5 y los 3 casos de uso están cubiertos end-to-end.**
 
+### Backlog v2 (iniciado)
+
+- [x] **Agente navegador** (Playwright): herramienta `browser` con goto/click/type/extract_text/screenshot y sesión headless por run
+- [x] **Soporte MCP**: cliente Model Context Protocol (JSON-RPC sobre Streamable HTTP); configura servidores en `MCP_SERVERS` y sus tools se exponen automáticamente (con gate de aprobación por ser externas)
+- [x] **Multi-tenancy**: organizaciones y membresías con roles (owner/admin/member) y límites declarados por plan — `/api/orgs`
+- [x] **Modo swarm**: lanza un run con `mode: "swarm"` y N clones del agente compiten; un juez selecciona la mejor solución
+- [ ] Scoping de agents/runs por organización · comunicación directa entre agentes · marketplace de plantillas
+
 ## Procesos
 
 | Proceso | Comando | Rol |

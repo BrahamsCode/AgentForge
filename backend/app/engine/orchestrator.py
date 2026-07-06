@@ -111,9 +111,9 @@ async def execute_team_run(
     if session_cls is None:
         from app.llm.toolcalling import ToolCallingSession as session_cls  # noqa: N813
     if tools is None:
-        from app.tools import get_default_tools
+        from app.tools import get_runtime_tools
 
-        tools = get_default_tools()
+        tools = await get_runtime_tools()
 
     async with session_factory() as db:
         run = await db.scalar(select(Run).where(Run.id == run_id))
