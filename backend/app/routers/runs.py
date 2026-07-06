@@ -12,7 +12,7 @@ from app.db import get_db
 from app.models import Agent, AgentMessage, Approval, Run, TraceStep, User
 from app.security import get_current_user
 from app.sse import get_user_from_header_or_query, run_event_stream
-from app.tenancy.deps import enforce_daily_limits, get_active_org
+from app.tenancy.deps import enforce_daily_limits, get_active_org, owner_scope
 from app.tenancy.models import Organization
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -85,11 +85,12 @@ class TraceStepOut(BaseModel):
 
 
 async def _get_run_or_404(
-    run_id: uuid.UUID, db: AsyncSession, org: Organization | None = None
+    run_id: uuid.UUID, db: AsyncSession, org: Organization | None, user: User
 ) -> Run:
-    # Scoping por organización (404 en vez de 403 para no filtrar existencia).
+    # Scoping: en org, cualquier miembro; en personal, solo el propietario.
+    # 404 (no 403) para no filtrar existencia de recursos ajenos.
     run = await db.scalar(
-        select(Run).where(Run.id == run_id, Run.org_id == (org.id if org else None))
+        select(Run).where(Run.id == run_id, owner_scope(Run, org, user))
     )
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
@@ -171,12 +172,12 @@ async def list_runs(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> list[RunOut]:
     result = await db.scalars(
         select(Run)
-        .where(Run.org_id == (org.id if org else None))
+        .where(owner_scope(Run, org, user))
         .order_by(Run.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -188,10 +189,10 @@ async def list_runs(
 async def get_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> RunOut:
-    return RunOut.from_run(await _get_run_or_404(run_id, db, org))
+    return RunOut.from_run(await _get_run_or_404(run_id, db, org, user))
 
 
 @router.get("/{run_id}/trace", response_model=list[TraceStepOut])
@@ -200,10 +201,10 @@ async def get_trace(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> list[TraceStep]:
-    await _get_run_or_404(run_id, db, org)
+    await _get_run_or_404(run_id, db, org, user)
     result = await db.scalars(
         select(TraceStep)
         .where(TraceStep.run_id == run_id)
@@ -218,10 +219,10 @@ async def get_trace(
 async def cancel_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> RunOut:
-    run = await _get_run_or_404(run_id, db, org)
+    run = await _get_run_or_404(run_id, db, org, user)
     if run.status in _TERMINAL:
         raise HTTPException(status.HTTP_409_CONFLICT, f"El run ya está {run.status}")
 
@@ -250,11 +251,11 @@ class AgentMessageOut(BaseModel):
 async def list_messages(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> list[AgentMessage]:
     """Comunicación directa entre agentes durante el run (observabilidad)."""
-    await _get_run_or_404(run_id, db, org)
+    await _get_run_or_404(run_id, db, org, user)
     result = await db.scalars(
         select(AgentMessage)
         .where(AgentMessage.run_id == run_id)
@@ -268,10 +269,10 @@ async def list_approvals(
     run_id: uuid.UUID,
     only_pending: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> list[Approval]:
-    await _get_run_or_404(run_id, db, org)
+    await _get_run_or_404(run_id, db, org, user)
     query = select(Approval).where(Approval.run_id == run_id)
     if only_pending:
         query = query.where(Approval.status == "pending")
@@ -289,7 +290,7 @@ async def decide_approval(
 ) -> Approval:
     if body.decision not in ("approved", "rejected"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "decision debe ser approved|rejected")
-    await _get_run_or_404(run_id, db, org)  # verifica acceso al run por org
+    await _get_run_or_404(run_id, db, org, user)  # verifica acceso al run
     approval = await db.scalar(
         select(Approval).where(Approval.id == body.approval_id, Approval.run_id == run_id)
     )
@@ -313,8 +314,8 @@ async def run_events(
     user: User = Depends(get_user_from_header_or_query),
 ) -> StreamingResponse:
     # El SSE se autentica por token en query (EventSource no manda headers), así
-    # que aquí no hay header X-Org-Id: si el run pertenece a una organización,
-    # se exige que el usuario sea miembro; los runs personales (org_id NULL) no.
+    # que aquí no hay header X-Org-Id. Aislamiento: run de organización → el
+    # usuario debe ser miembro; run personal (org_id NULL) → debe ser su dueño.
     run = await db.scalar(select(Run).where(Run.id == run_id))
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
@@ -323,6 +324,8 @@ async def run_events(
 
         if await get_membership(db, run.org_id, user.id) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
+    elif run.created_by != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run no encontrado")
     return StreamingResponse(
         run_event_stream(str(run_id), run_is_terminal=run.status in _TERMINAL),
         media_type="text/event-stream",

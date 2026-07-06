@@ -50,12 +50,20 @@ información agregada entre tenants.
 **Corrección:** el endpoint toma la organización activa y filtra las cuatro
 consultas por `Run.org_id == (org.id if org else None)`.
 
+### 3. Contexto personal compartido entre usuarios (severidad: media)
+
+Los recursos sin organización (`org_id NULL`) no se filtraban por `created_by`,
+así que en modo personal varios usuarios compartían el mismo espacio (podían
+listar/leer agentes y runs de otros).
+
+**Corrección:** helper `owner_scope(model, org, user)` — con organización activa
+cualquier miembro ve los recursos de la org; en contexto personal solo los
+propios (`org_id NULL AND created_by == user.id`). Aplicado en el listado y en
+todos los accesos por ID de agents y runs, y en el SSE (que valida propiedad o
+pertenencia según el caso).
+
 ## Riesgos residuales conocidos (backlog de endurecimiento)
 
-- **Contexto personal compartido entre usuarios**: los recursos sin organización
-  (`org_id NULL`) no están scopeados por `created_by`, así que en modo personal
-  varios usuarios comparten espacio. Recomendado: filtrar también por
-  `created_by` en el contexto personal, o exigir siempre organización.
 - **Rate limiting de autenticación**: no hay límite de intentos de login; se
   recomienda añadirlo (p. ej. por IP/usuario) en el gateway.
 - **JWT_SECRET**: debe fijarse a un valor fuerte en producción (el default es de

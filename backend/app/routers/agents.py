@@ -9,22 +9,19 @@ from app.llm.client import get_llm_client
 from app.models import Agent, User
 from app.schemas import AgentCreate, AgentOut, AgentUpdate, AskRequest, AskResponse
 from app.security import get_current_user
-from app.tenancy.deps import get_active_org
+from app.tenancy.deps import get_active_org, owner_scope
 from app.tenancy.models import Organization
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 async def _get_agent_or_404(
-    agent_id: uuid.UUID, db: AsyncSession, org: Organization | None
+    agent_id: uuid.UUID, db: AsyncSession, org: Organization | None, user: User
 ) -> Agent:
-    # Scoping por organización: un agente solo es accesible desde el contexto
-    # (personal o de org) en el que fue creado. Si no coincide devolvemos 404
-    # (no 403) para no filtrar la existencia de recursos de otras orgs.
+    # Scoping: en org, cualquier miembro; en personal, solo el propietario.
+    # 404 (no 403) para no filtrar la existencia de recursos ajenos.
     agent = await db.scalar(
-        select(Agent).where(
-            Agent.id == agent_id, Agent.org_id == (org.id if org else None)
-        )
+        select(Agent).where(Agent.id == agent_id, owner_scope(Agent, org, user))
     )
     if agent is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agente no encontrado")
@@ -48,11 +45,11 @@ async def create_agent(
 @router.get("", response_model=list[AgentOut])
 async def list_agents(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> list[Agent]:
-    # Con org activa → agentes de la org; sin org → agentes personales (org_id NULL)
-    query = select(Agent).where(Agent.org_id == (org.id if org else None))
+    # Con org activa → agentes de la org; sin org → agentes propios del usuario.
+    query = select(Agent).where(owner_scope(Agent, org, user))
     result = await db.scalars(query.order_by(Agent.created_at.desc()))
     return list(result)
 
@@ -61,10 +58,10 @@ async def list_agents(
 async def get_agent(
     agent_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> Agent:
-    return await _get_agent_or_404(agent_id, db, org)
+    return await _get_agent_or_404(agent_id, db, org, user)
 
 
 @router.patch("/{agent_id}", response_model=AgentOut)
@@ -72,10 +69,10 @@ async def update_agent(
     agent_id: uuid.UUID,
     body: AgentUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> Agent:
-    agent = await _get_agent_or_404(agent_id, db, org)
+    agent = await _get_agent_or_404(agent_id, db, org, user)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(agent, field, value)
     await db.commit()
@@ -87,10 +84,10 @@ async def update_agent(
 async def delete_agent(
     agent_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> None:
-    agent = await _get_agent_or_404(agent_id, db, org)
+    agent = await _get_agent_or_404(agent_id, db, org, user)
     await db.delete(agent)
     await db.commit()
 
@@ -100,7 +97,7 @@ async def ask_agent(
     agent_id: uuid.UUID,
     body: AskRequest,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     org: Organization | None = Depends(get_active_org),
 ) -> AskResponse:
     """Entregable de la Fase 0: pregunta simple a un agente, sin herramientas.
@@ -108,7 +105,7 @@ async def ask_agent(
     En la Fase 1 esto se reemplaza por runs encolados en Redis Streams con
     loop agéntico y trace completo.
     """
-    agent = await _get_agent_or_404(agent_id, db, org)
+    agent = await _get_agent_or_404(agent_id, db, org, user)
     try:
         result = await get_llm_client().complete(
             provider=agent.model_provider,

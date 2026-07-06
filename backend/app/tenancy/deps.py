@@ -21,6 +21,18 @@ from app.tenancy.models import Organization
 from app.tenancy.service import get_membership
 
 
+def owner_scope(model, org: Organization | None, user: User):
+    """Condición de acceso a un recurso (Agent/Run) según el contexto.
+
+    - Con organización activa: cualquier miembro ve los recursos de la org.
+    - En contexto personal (sin org): solo los recursos propios del usuario
+      (org_id NULL y created_by == user.id), para aislar usuarios entre sí.
+    """
+    if org is not None:
+        return model.org_id == org.id
+    return (model.org_id.is_(None)) & (model.created_by == user.id)
+
+
 async def get_active_org(
     x_org_id: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
