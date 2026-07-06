@@ -12,6 +12,8 @@ from app.db import get_db
 from app.models import Agent, Approval, Run, TraceStep, User
 from app.security import get_current_user
 from app.sse import get_user_from_header_or_query, run_event_stream
+from app.tenancy.deps import enforce_daily_limits, get_active_org
+from app.tenancy.models import Organization
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -94,11 +96,15 @@ async def create_run(
     body: RunCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> RunOut:
     if (body.agent_id is None) == (body.team_id is None):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Envía exactamente uno: agent_id o team_id"
         )
+
+    if org is not None:
+        await enforce_daily_limits(db, org)
 
     if body.agent_id is not None:
         agent = await db.scalar(select(Agent).where(Agent.id == body.agent_id))
@@ -133,7 +139,7 @@ async def create_run(
         run = Run(
             agent_id=body.agent_id, team_id=body.team_id, goal=body.goal,
             status="scheduled", schedule_cron=body.schedule_cron,
-            checkpoint=extra or None, created_by=user.id,
+            checkpoint=extra or None, created_by=user.id, org_id=org.id if org else None,
         )
         db.add(run)
         await db.commit()
@@ -143,7 +149,7 @@ async def create_run(
     run = Run(
         agent_id=body.agent_id, team_id=body.team_id, goal=body.goal,
         status="queued", checkpoint=extra or None,
-        created_by=user.id,
+        created_by=user.id, org_id=org.id if org else None,
     )
     db.add(run)
     await db.commit()
@@ -161,9 +167,14 @@ async def list_runs(
     limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> list[RunOut]:
     result = await db.scalars(
-        select(Run).order_by(Run.created_at.desc()).offset(offset).limit(limit)
+        select(Run)
+        .where(Run.org_id == (org.id if org else None))
+        .order_by(Run.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
     return [RunOut.from_run(r) for r in result]
 

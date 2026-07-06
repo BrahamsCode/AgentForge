@@ -35,6 +35,7 @@ class Agent(Base):
     max_steps: Mapped[int] = mapped_column(Integer, default=30)
     max_cost_usd: Mapped[float] = mapped_column(Float, default=1.0)
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -82,6 +83,7 @@ class Run(Base):
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     schedule_cron: Mapped[str | None] = mapped_column(String(64), nullable=True)
     parent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

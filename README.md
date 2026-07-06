@@ -89,9 +89,10 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 
 - [x] **Agente navegador** (Playwright): herramienta `browser` con goto/click/type/extract_text/screenshot y sesión headless por run
 - [x] **Soporte MCP**: cliente Model Context Protocol (JSON-RPC sobre Streamable HTTP); configura servidores en `MCP_SERVERS` y sus tools se exponen automáticamente (con gate de aprobación por ser externas)
-- [x] **Multi-tenancy**: organizaciones y membresías con roles (owner/admin/member) y límites declarados por plan — `/api/orgs`
+- [x] **Multi-tenancy**: organizaciones y membresías con roles (owner/admin/member) y límites por plan — `/api/orgs`
+- [x] **Scoping por organización**: agentes y runs se aíslan por org (header `X-Org-Id`); sin header, contexto personal (compatible hacia atrás). Se aplican los límites diarios de runs y de costo por organización (HTTP 429 al superarlos)
 - [x] **Modo swarm**: lanza un run con `mode: "swarm"` y N clones del agente compiten; un juez selecciona la mejor solución
-- [ ] Scoping de agents/runs por organización · comunicación directa entre agentes · marketplace de plantillas
+- [ ] Comunicación directa entre agentes · marketplace de plantillas de equipos
 
 ## Procesos
 

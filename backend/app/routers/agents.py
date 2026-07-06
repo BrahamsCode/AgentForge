@@ -9,6 +9,8 @@ from app.llm.client import get_llm_client
 from app.models import Agent, User
 from app.schemas import AgentCreate, AgentOut, AgentUpdate, AskRequest, AskResponse
 from app.security import get_current_user
+from app.tenancy.deps import get_active_org
+from app.tenancy.models import Organization
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -25,8 +27,9 @@ async def create_agent(
     body: AgentCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> Agent:
-    agent = Agent(**body.model_dump(), created_by=user.id)
+    agent = Agent(**body.model_dump(), created_by=user.id, org_id=org.id if org else None)
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
@@ -37,8 +40,11 @@ async def create_agent(
 async def list_agents(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
+    org: Organization | None = Depends(get_active_org),
 ) -> list[Agent]:
-    result = await db.scalars(select(Agent).order_by(Agent.created_at.desc()))
+    # Con org activa → agentes de la org; sin org → agentes personales (org_id NULL)
+    query = select(Agent).where(Agent.org_id == (org.id if org else None))
+    result = await db.scalars(query.order_by(Agent.created_at.desc()))
     return list(result)
 
 
