@@ -24,15 +24,21 @@ export default function Runs() {
   // executor: "agent:<id>" o "team:<id>"
   const [executor, setExecutor] = useState("");
   const [goal, setGoal] = useState("");
+  const [swarm, setSwarm] = useState(false);
+
+  const isAgent = executor.startsWith("agent:");
 
   const launch = useMutation({
     mutationFn: () => {
       const [kind, id] = executor.split(":");
+      const body =
+        kind === "team"
+          ? { team_id: id, goal }
+          : // El modo swarm sólo aplica a agentes (requiere agent_id).
+            { agent_id: id, goal, ...(swarm ? { mode: "swarm" } : {}) };
       return api<Run>("/api/runs", {
         method: "POST",
-        body: JSON.stringify(
-          kind === "team" ? { team_id: id, goal } : { agent_id: id, goal },
-        ),
+        body: JSON.stringify(body),
       });
     },
     onSuccess: (run) => {
@@ -82,6 +88,17 @@ export default function Runs() {
             placeholder="Investiga X, compara Y y genera un informe en informe.md…"
             required
           />
+          {isAgent && (
+            <label className="row" style={{ marginTop: 10, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                style={{ width: "auto" }}
+                checked={swarm}
+                onChange={(e) => setSwarm(e.target.checked)}
+              />
+              Modo swarm (N clones compiten, un juez elige)
+            </label>
+          )}
           {launch.error && <p className="error-text">{launch.error.message}</p>}
           <div style={{ marginTop: 10 }}>
             <button disabled={launch.isPending || !executor || !goal.trim()}>

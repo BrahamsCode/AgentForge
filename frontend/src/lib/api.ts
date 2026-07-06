@@ -1,4 +1,5 @@
 import { useAuth } from "./auth";
+import { useOrg } from "./orgStore";
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -17,6 +18,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...(init.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  // Organización activa: si existe, todas las peticiones van scopeadas con
+  // X-Org-Id. Sin org activa (modo personal) no se envía el header.
+  const { activeOrgId } = useOrg.getState();
+  if (activeOrgId) headers["X-Org-Id"] = activeOrgId;
 
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (response.status === 401) {

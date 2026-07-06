@@ -83,6 +83,24 @@ export interface Approval {
   decided_at: string | null;
 }
 
+export type OrgRole = "owner" | "admin" | "member";
+
+export interface OrgMember {
+  org_id: string;
+  user_id: string;
+  role: OrgRole;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  plan: string;
+  max_runs_per_day: number;
+  max_cost_usd_per_day: number;
+  created_at: string;
+  members?: OrgMember[];
+}
+
 export interface AgentMessage {
   id: string;
   from_agent_name: string;
