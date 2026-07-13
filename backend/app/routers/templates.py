@@ -62,9 +62,12 @@ async def list_templates(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[TeamTemplate]:
-    stmt = select(TeamTemplate).order_by(TeamTemplate.created_at.desc())
-    result = await db.scalars(stmt)
-    return list(result.all())
+    # Siembra las plantillas builtin (idempotente) y devuelve builtin + las del
+    # usuario. Se delega en el service para no duplicar la lógica de sembrado
+    # ni de scoping (el listado inline rompía el contrato del fake de tests y
+    # perdía el seed de builtins).
+    await service.seed_builtins(db)
+    return await service.list_templates(db, user.id)
 
 
 @router.get("/{template_id}", response_model=TemplateOut)
