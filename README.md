@@ -13,12 +13,23 @@ Plataforma self-hosted de orquestación multi-agente: define agentes de IA espec
 /docs        Diseño y documentación
 ```
 
-## Quick start (Fase 0)
+## Quick start — stack completo (un comando)
 
 ```bash
-# 1. Levantar la infraestructura
 cd infra
-docker compose up -d
+ANTHROPIC_API_KEY=sk-... docker compose up --build
+# API en :8000 · panel en :5173 · MinIO en :9001
+# Levanta Postgres+pgvector, Redis, MinIO, la API (migra sola), 2 workers,
+# el scheduler y el frontend. Luego, para datos demo:
+docker compose exec api python seed.py   # usuario demo@agentforge.dev / demo1234
+```
+
+## Quick start — desarrollo local
+
+```bash
+# 1. Solo la infraestructura de datos
+cd infra
+docker compose up -d postgres redis minio
 
 # 2. Configurar el backend
 cd ../backend
@@ -30,7 +41,14 @@ pip install -e ".[dev]"
 alembic upgrade head
 uvicorn app.main:app --reload
 
-# 4. Probar
+# 4. Worker (en otra terminal, mismo venv)
+python worker.py
+
+# 5. Frontend (en otra terminal)
+cd ../frontend
+npm install && npm run dev   # http://localhost:5173
+
+# 6. API docs
 open http://localhost:8000/docs
 ```
 
@@ -59,11 +77,38 @@ curl -X POST localhost:8000/api/agents/$AGENT/ask -H "Authorization: Bearer $TOK
 ## Estado del roadmap
 
 - [x] **Fase 0 — Fundaciones**: monorepo, Docker Compose, FastAPI + JWT, Alembic, CRUD de agentes, cliente LLM multi-proveedor con costos
-- [ ] Fase 1 — Agente único con herramientas (worker + Redis Streams + trace + SSE)
-- [ ] Fase 2 — Sandbox de código y memoria (RAG con pgvector)
-- [ ] Fase 3 — Orquestación multi-agente (LangGraph + checkpointing)
-- [ ] Fase 4 — Human-in-the-loop y seguridad
-- [ ] Fase 5 — Programación, métricas y pulido
+- [x] **Fase 1 — Agente único con herramientas**: loop agéntico (razonar → herramienta → observar) con tool calling nativo por proveedor, herramientas `web_search`/`web_fetch`/`read_file`/`write_file` (sandbox de paths y marcado de contenido no confiable), worker con Redis Streams (consumer group + XAUTOCLAIM), trace completo en `trace_steps`, checkpoints y presupuestos duros, API de runs con SSE en vivo, y frontend (agentes, runs, trace en vivo)
+- [x] **Fase 2 — Sandbox y memoria**: herramienta `run_python` en contenedores Docker efímeros (sin red, límites de CPU/RAM/pids, rootfs de solo lectura), compresión de contexto para runs largos, RAG con pgvector (índices HNSW), chunking con solape, embedders OpenAI/Ollama/hash, herramienta `search_memory` y endpoints de documentos
+- [x] **Fase 3 — Orquestación multi-agente**: grafo `plan → delegate → collect → synthesize` con checkpointing fase a fase en `runs.checkpoint`, plan JSON del orquestador con DAG de dependencias, sub-agentes en paralelo por olas (hasta 4 simultáneos), presupuesto de equipo, reanudación tras caída del worker (O4) y equipos en el panel (crear equipo + lanzar runs de equipo)
+- [x] **Fase 4 — Human-in-the-loop y seguridad**: guardrails de política por nivel de riesgo (`safe`/`sensitive`/`dangerous`), escalado a aprobación ante argumentos sospechosos, gate de aprobación en el motor (el run pasa a `awaiting_approval` y espera la decisión humana con timeout configurable), detección de prompt injection en contenido externo, y cola de aprobaciones en el panel (aprobar/rechazar en vivo) — objetivo O5 cumplido
+- [x] **Fase 5 — Programación, métricas y pulido**: runs programados por cron (parser propio de 5 campos + scheduler idempotente por minuto que lanza runs hijo), notificaciones webhook al terminar (CU-3), dashboard de métricas (tasa de éxito, costo por agente, herramientas más usadas), suite de 10 evals de referencia con scoring y comparación contra línea base, y CI (tests + evals + build)
+
+**v1.0 completa: los objetivos O1–O5 y los 3 casos de uso están cubiertos end-to-end.**
+
+### Backlog v2 — **completo**
+
+- [x] **Agente navegador** (Playwright): herramienta `browser` con goto/click/type/extract_text/screenshot y sesión headless por run
+- [x] **Soporte MCP**: cliente Model Context Protocol (JSON-RPC sobre Streamable HTTP); configura servidores en `MCP_SERVERS` y sus tools se exponen automáticamente (con gate de aprobación por ser externas)
+- [x] **Multi-tenancy**: organizaciones y membresías con roles (owner/admin/member) y límites por plan — `/api/orgs`
+- [x] **Scoping por organización**: agentes y runs se aíslan por org (header `X-Org-Id`); sin header, contexto personal (compatible hacia atrás). Se aplican los límites diarios de runs y de costo por organización (HTTP 429 al superarlos)
+- [x] **Modo swarm**: lanza un run con `mode: "swarm"` y N clones del agente compiten; un juez selecciona la mejor solución
+- [x] **Comunicación directa entre agentes**: en runs de equipo, cada sub-agente puede enviar mensajes a sus pares (o difundir con `all`) vía las herramientas `send_message` / `check_messages`, sin pasar por el orquestador; mensajes persistidos y visibles en el detalle del run (`/api/runs/{id}/messages`)
+- [x] **Marketplace de plantillas de equipos**: plantillas reutilizables (builtin + propias) que crean un equipo completo de un clic — `/api/templates` y página en el panel
+
+**138 tests · suite de evals sin regresiones · migraciones 0001–0007 · 28 rutas API.**
+
+## Seguridad
+
+Revisión de seguridad documentada en [`docs/SECURITY.md`](docs/SECURITY.md): sandbox Docker sin red con límites de recursos, sandboxing de rutas de archivos, marcado de contenido externo no confiable (prompt injection), human-in-the-loop para herramientas de riesgo, Argon2 + JWT, aislamiento por organización y por usuario en todos los accesos, métricas scopeadas, y rate limiting de login. Ver también [`docs/API.md`](docs/API.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) y [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+## Procesos
+
+| Proceso | Comando | Rol |
+|---------|---------|-----|
+| API | `uvicorn app.main:app` | REST + SSE |
+| Worker(s) | `python worker.py` | ejecuta runs de la cola (escalable) |
+| Scheduler | `python scheduler.py` | dispara runs programados (cron) |
+| Evals | `python run_evals.py` | scoring vs. línea base (CI) |
 
 Ver el detalle de cada fase en [docs/DESIGN.md](docs/DESIGN.md#8-roadmap-por-fases).
 

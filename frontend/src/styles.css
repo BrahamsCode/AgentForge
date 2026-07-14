@@ -1,0 +1,153 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1e2230;
+  --border: #2a2f3d;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #6c8cff;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 210px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar .brand {
+  font-weight: 700;
+  font-size: 17px;
+  margin-bottom: 18px;
+  letter-spacing: 0.3px;
+}
+.sidebar .brand span { color: var(--accent); }
+.sidebar a {
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.sidebar a.active, .sidebar a:hover { color: var(--text); background: var(--panel-2); }
+.sidebar .spacer { flex: 1; }
+.sidebar .user { color: var(--muted); font-size: 12px; word-break: break-all; }
+
+.main { flex: 1; padding: 26px 32px; max-width: 1100px; }
+
+h1 { font-size: 20px; margin: 0 0 18px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--panel-2); }
+
+input, textarea, select {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+textarea { resize: vertical; min-height: 80px; }
+label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+
+button {
+  background: var(--accent);
+  color: #0b0d12;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+button.danger { background: transparent; color: var(--err); border: 1px solid var(--border); }
+
+.row { display: flex; gap: 12px; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+.badge.queued { color: var(--muted); }
+.badge.running { color: var(--accent); border-color: var(--accent); }
+.badge.awaiting_approval { color: var(--warn); border-color: var(--warn); }
+.badge.completed { color: var(--ok); border-color: var(--ok); }
+.badge.failed { color: var(--err); border-color: var(--err); }
+.badge.cancelled { color: var(--muted); }
+
+.timeline { display: flex; flex-direction: column; gap: 8px; }
+.step {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--panel-2);
+}
+.step.llm_call { border-left-color: var(--accent); }
+.step.tool_call { border-left-color: var(--ok); }
+.step.error { border-left-color: var(--err); }
+.step .meta { color: var(--muted); font-size: 12px; }
+
+pre.answer {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
+.error-text { color: var(--err); margin: 8px 0; }
+.muted { color: var(--muted); }
+
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+.login-card { width: 360px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tabs button { flex: 1; }
+.tabs button.inactive { background: var(--panel-2); color: var(--muted); }

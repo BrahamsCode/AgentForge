@@ -11,20 +11,28 @@ dependencies = [
     "alembic>=1.14",
     "pydantic>=2.9",
     "email-validator>=2.2",
+    "python-multipart>=0.0.12",
     "pydantic-settings>=2.6",
     "pyjwt>=2.10",
     "argon2-cffi>=23.1",
     "redis>=5.2",
+    "pgvector>=0.3",
     "anthropic>=0.90",
     "openai>=1.60",
     "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
+# Agente con navegador (v2). Instalar aparte: pip install -e ".[browser]"
+# y luego `playwright install chromium` (o usar el Chromium preinstalado).
+browser = [
+    "playwright>=1.48",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "aiosqlite>=0.20",
+    "fakeredis>=2.26",
     "ruff>=0.8",
 ]
 
